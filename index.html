@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Raj SQL Injection</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root{--bg-1:#020617;--bg-2:#0b1220;--panel:#0f172a;--muted:#94a3b8;--accent:#ef4444;--accent-2:#dc2626}
+      *{box-sizing:border-box}
+      body{font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial;margin:0;background:linear-gradient(135deg,var(--bg-1),var(--bg-2));color:#e6eef6;-webkit-font-smoothing:antialiased}
+      h1,h2,h3{color:#f8fafc;margin:0}
+      .container{max-width:1200px;margin:28px auto;background:rgba(17,24,39,0.95);padding:18px;border-radius:12px;box-shadow:0 12px 40px rgba(2,6,23,0.7)}
+      .panel{margin-top:18px;padding:18px;background:linear-gradient(145deg,#111827,#0b1220);border-radius:10px;border:1px solid rgba(77,88,102,0.12)}
+      input,button{padding:10px 12px;margin:8px 0;width:100%;border-radius:8px;border:1px solid rgba(71,85,105,0.12);box-sizing:border-box;background:rgba(255,255,255,0.02);color:inherit}
+      .btn{display:inline-block;padding:10px 14px;border-radius:8px;border:none;color:#fff;background:linear-gradient(90deg,var(--accent),var(--accent-2));cursor:pointer;font-weight:600}
+      .result{margin-top:12px;padding:12px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border:1px solid rgba(51,65,85,0.08);color:var(--muted)}
+      code{background:#111827;padding:3px 6px;border-radius:4px}
+      .hint{color:#93c5fd}
+      .hidden{display:none}
+      .lab-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 8px}
+      .pill{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border-radius:999px;background:rgba(255,255,255,0.04);color:#cbd5e1;font-size:13px;border:1px solid rgba(255,255,255,0.06)}
+      .secondary{background:rgba(255,255,255,0.04);color:#e2e8f0;border:1px solid rgba(255,255,255,0.06)}
+      .sample-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px}
+      .query-preview{margin-top:10px;padding:10px;border-radius:8px;background:#0b1220;border:1px solid rgba(255,255,255,0.06);font-size:13px;color:#cbd5e1}
+      .hint-chip{display:inline-block;padding:6px 8px;border-radius:999px;background:rgba(239,68,68,0.15);color:#fda4af;font-size:12px;margin-top:6px}
+      .session-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;background:rgba(16,185,129,0.16);color:#bbf7d0;font-size:13px;border:1px solid rgba(16,185,129,0.22)}
+      .quick-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+      .quick-actions button{width:auto;padding:8px 12px;font-size:13px}
+      .notes-box{margin-top:12px;padding:12px;border-radius:8px;background:#111827;border:1px solid rgba(255,255,255,0.06)}
+      .notes-box textarea{min-height:80px;background:#0b1220;border:1px solid rgba(255,255,255,0.08);color:#e2e8f0}
+      .success-overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(2,6,23,0.8);z-index:999;opacity:0;pointer-events:none;transition:opacity .35s ease}
+      .success-overlay.show{opacity:1}
+      .success-card{padding:24px 28px;border-radius:16px;background:linear-gradient(135deg,#111827,#1f2937);border:1px solid rgba(255,255,255,0.1);text-align:center;transform:translateY(20px) scale(.96);transition:transform .35s ease}
+      .success-overlay.show .success-card{transform:translateY(0) scale(1)}
+      .success-badge{display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:rgba(16,185,129,0.18);color:#34d399;font-size:28px;margin-bottom:12px}
+      .dashboard-enter{animation:fadeSlideIn .45s ease}
+      @keyframes fadeSlideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+      .sample-card{padding:10px;border-radius:8px;background:#111827;border:1px solid rgba(255,255,255,0.05)}
+      .sample-card strong{display:block;margin-bottom:4px;color:#f8fafc}
+      .dashboard-shell{display:grid;grid-template-columns:240px 1fr;gap:20px}
+      .sidebar{background:linear-gradient(180deg,#111827,#0f1720);border:1px solid rgba(51,65,85,0.06);border-radius:14px;padding:18px}
+      .brand{font-size:18px;font-weight:bold;margin-bottom:20px;color:#f8fafc}
+      .nav{display:flex;flex-direction:column;gap:8px}
+      .nav-item{padding:10px 12px;border-radius:8px;color:#cbd5e1;text-decoration:none;background:#1f2937}
+      .nav-item.active{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:white}
+      .sidebar-card{margin-top:16px;padding:12px;border-radius:8px;background:#0f172a;border:1px solid rgba(51,65,85,0.06)}
+      .main-content{display:flex;flex-direction:column;gap:16px}
+      .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+      .dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+      .card{background:linear-gradient(145deg,#0f172a,#1e293b);padding:16px;border-radius:10px;border:1px solid rgba(51,65,85,0.06)}
+      .metric{font-size:24px;font-weight:bold;color:#f8fafc}
+      .content-grid{display:grid;grid-template-columns:1.2fr 0.8fr;gap:16px}
+      .chart-bars{display:flex;align-items:flex-end;gap:10px;height:180px;margin-top:12px}
+      .bar{flex:1;border-radius:8px 8px 0 0;background:linear-gradient(180deg,var(--accent),#7f1d1d);min-height:30px}
+      .bar-label{text-align:center;margin-top:6px;color:#cbd5e1;font-size:12px}
+      .activity-list{padding-left:18px}.activity-list li{margin-bottom:8px}
+      .payload-box{margin-top:10px;padding:12px;border-radius:8px;background:#0f172a;border:1px solid rgba(51,65,85,0.06)}
+      .payload-inline{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+      .payload-inline code{display:inline-block;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.02);cursor:copy}
+      .copy-btn{margin-left:6px;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.02);color:var(--muted);cursor:pointer}
+      .topbar-global{display:flex;justify-content:space-between;align-items:center;gap:12px}
+      .search{min-width:300px;max-width:520px}
+      @media (max-width:900px){.dashboard-shell{grid-template-columns:1fr}.search{min-width:120px}}
+    </style>
+  </head>
+  <body>
+    <div class="success-overlay" id="successOverlay">
+      <div class="success-card">
+        <div class="success-badge">✓</div>
+        <h2>Access Granted</h2>
+        <p id="successMessage">Login successful. Welcome to the dashboard.</p>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="topbar-global">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <h1>Raj SQL Injection</h1>
+          <span style="color:var(--muted);font-size:13px;">Practice lab — vulnerable on purpose</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <input class="search" placeholder="Search..." />
+          <div id="clock" style="color:var(--muted);font-size:13px"></div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;">
+            <div style="font-size:12px;color:var(--muted)">Raj</div>
+            <div style="font-size:11px;color:var(--muted)">Administrator</div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:14px;color:var(--muted);">This is a deliberately vulnerable demo for learning purposes only. It simulates a login form and shows how input can alter the underlying query.</p>
+
+      <div id="loginView">
+        <div class="panel">
+          <h2>Login Form</h2>
+          <form id="loginForm">
+            <label for="username">Username</label>
+            <input id="username" name="username" placeholder="Enter username" required />
+            <label for="password">Password</label>
+            <input id="password" name="password" placeholder="Enter password" required />
+            <button class="btn" type="submit">Login</button>
+          </form>
+          <div id="output" class="result">Try entering <code>' OR '1'='1</code> as the username and anything as the password.</div>
+          <div id="queryPreview" class="query-preview">Query preview will appear here.</div>
+        </div>
+
+        <div class="panel">
+          <h2>What this demo does</h2>
+          <ul>
+            <li>It uses a fake backend that builds a query like <code>SELECT * FROM users WHERE username = 'INPUT' AND password = 'INPUT'</code>.</li>
+            <li>Injecting a quote can break out of the string and alter the logic.</li>
+            <li>Use the form to test login bypass and inspect the simulated query.</li>
+          </ul>
+          <p class="hint">Tip: Try <code>admin' -- </code>, <code>' OR '1'='1</code>, or <code>user_id='Raj' OR 1=1 -- </code>.</p>
+        </div>
+
+        <div class="panel">
+          <h2>Lab Controls</h2>
+          <div class="lab-controls">
+            <button id="resetDemoBtn" class="btn secondary" type="button">Reset Demo</button>
+            <button id="hintBtn" class="btn secondary" type="button">Show Hint</button>
+            <div class="pill">Attempts: <strong id="attemptCount">0</strong></div>
+            <div class="pill">Status: <strong id="labStatus">Ready</strong></div>
+          </div>
+          <div id="passwordHint" class="hint-chip">Password tip: payloads belong in the password field.</div>
+          <div class="sample-grid">
+            <div class="sample-card"><strong>admin</strong>admin123</div>
+            <div class="sample-card"><strong>alice</strong>password</div>
+            <div class="sample-card"><strong>bob</strong>qwerty</div>
+          </div>
+          <ul id="activityLog" class="activity-list" style="margin-top:12px"></ul>
+        </div>
+      </div>
+
+      <div id="dashboardView" class="hidden">
+        <div class="dashboard-shell">
+          <aside class="sidebar">
+            <div class="brand">Raj Security Center</div>
+            <nav class="nav">
+              <a class="nav-item active" href="#">Overview</a>
+              <a class="nav-item" href="#">Payload Lab</a>
+              <a class="nav-item" href="#">Alerts</a>
+              <a class="nav-item" href="#">Reports</a>
+            </nav>
+            <div class="sidebar-card">
+              <h4>Practice Focus</h4>
+              <p>SQL injection bypass demo completed successfully.</p>
+            </div>
+          </aside>
+
+          <main class="main-content">
+            <div class="panel">
+              <div class="topbar">
+                <div>
+                  <h2 id="welcomeText">Welcome, Raj</h2>
+                  <p>Secure operations console</p>
+                </div>
+                <div class="session-chip" id="sessionChip">Session active • Protected</div>
+                <button id="logoutBtn" class="btn" type="button">Logout</button>
+              </div>
+              <div class="payload-box">
+                <p class="hint">Place payloads in the <strong>password</strong> field while using any username.</p>
+                <div class="payload-inline">
+                  <code>' OR '1'='1 -- </code>
+                  <code>admin' -- </code>
+                  <code>' OR 1=1 -- </code>
+                  <code>password' OR '1'='1 -- </code>
+                  <code>mypassword123</code>
+                </div>
+              </div>
+              <div class="quick-actions">
+                <button id="refreshBtn" class="btn secondary" type="button">Refresh Feed</button>
+                <button id="clearNotesBtn" class="btn secondary" type="button">Clear Notes</button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="dashboard-grid">
+                <div class="card">
+                  <h3>Revenue</h3>
+                  <p class="metric">$128K</p>
+                </div>
+                <div class="card">
+                  <h3>Active Users</h3>
+                  <p class="metric">4,280</p>
+                </div>
+                <div class="card">
+                  <h3>Open Alerts</h3>
+                  <p class="metric">7</p>
+                </div>
+                <div class="card">
+                  <h3>System Status</h3>
+                  <p class="metric">Secure</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="content-grid">
+              <div class="panel">
+                <h3>Coverage Trend</h3>
+                <div class="chart-bars">
+                  <div>
+                    <div class="bar" style="height: 72%"></div>
+                    <div class="bar-label">Mon</div>
+                  </div>
+                  <div>
+                    <div class="bar" style="height: 88%"></div>
+                    <div class="bar-label">Tue</div>
+                  </div>
+                  <div>
+                    <div class="bar" style="height: 64%"></div>
+                    <div class="bar-label">Wed</div>
+                  </div>
+                  <div>
+                    <div class="bar" style="height: 92%"></div>
+                    <div class="bar-label">Thu</div>
+                  </div>
+                  <div>
+                    <div class="bar" style="height: 80%"></div>
+                    <div class="bar-label">Fri</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <h3>Recent Activities</h3>
+                <ul class="activity-list" id="dashboardFeed">
+                  <li>New login attempt from admin panel</li>
+                  <li>Database backup completed</li>
+                  <li>Security scan flagged 3 low-risk issues</li>
+                  <li>Access review scheduled for tomorrow</li>
+                </ul>
+              </div>
+
+              <div class="panel">
+                <h3>Session Notes</h3>
+                <div class="notes-box">
+                  <textarea id="sessionNotes" placeholder="Write your notes about the lab session..."></textarea>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const users = [
+        { username: 'admin', password: 'admin123' },
+        { username: 'alice', password: 'password' },
+        { username: 'bob', password: 'qwerty' }
+      ];
+
+      const loginView = document.getElementById('loginView');
+      const dashboardView = document.getElementById('dashboardView');
+      const welcomeText = document.getElementById('welcomeText');
+      const logoutBtn = document.getElementById('logoutBtn');
+      const refreshBtn = document.getElementById('refreshBtn');
+      const clearNotesBtn = document.getElementById('clearNotesBtn');
+      const resetDemoBtn = document.getElementById('resetDemoBtn');
+      const hintBtn = document.getElementById('hintBtn');
+      const output = document.getElementById('output');
+      const queryPreviewEl = document.getElementById('queryPreview');
+      const attemptCountEl = document.getElementById('attemptCount');
+      const labStatusEl = document.getElementById('labStatus');
+      const activityLogEl = document.getElementById('activityLog');
+      const dashboardFeedEl = document.getElementById('dashboardFeed');
+      const sessionNotesEl = document.getElementById('sessionNotes');
+      const passwordHintEl = document.getElementById('passwordHint');
+      const sessionChipEl = document.getElementById('sessionChip');
+      const successOverlayEl = document.getElementById('successOverlay');
+      const successMessageEl = document.getElementById('successMessage');
+      const initialMessage = "Try entering <code>' OR '1'='1</code> as the username and anything as the password.";
+      const hints = [
+        'Try a payload in the password field such as \' OR 1=1 --',
+        'Use any username; the payload should go in the password box.',
+        'The demo checks only the password for injection-style characters.'
+      ];
+      let attemptCount = 0;
+
+      function resetDemo() {
+        document.getElementById('loginForm').reset();
+        attemptCount = 0;
+        attemptCountEl.textContent = '0';
+        labStatusEl.textContent = 'Ready';
+        queryPreviewEl.textContent = 'Query preview will appear here.';
+        activityLogEl.innerHTML = '';
+        output.innerHTML = initialMessage;
+        passwordHintEl.textContent = 'Password tip: payloads belong in the password field.';
+      }
+
+      function appendActivity(text) {
+        const item = document.createElement('li');
+        item.textContent = text;
+        activityLogEl.prepend(item);
+        while (activityLogEl.children.length > 5) {
+          activityLogEl.removeChild(activityLogEl.lastChild);
+        }
+      }
+
+      logoutBtn.addEventListener('click', function () {
+        loginView.classList.remove('hidden');
+        dashboardView.classList.add('hidden');
+        resetDemo();
+      });
+
+      resetDemoBtn.addEventListener('click', resetDemo);
+      hintBtn.addEventListener('click', function () {
+        const randomHint = hints[Math.floor(Math.random() * hints.length)];
+        passwordHintEl.textContent = randomHint;
+      });
+      refreshBtn.addEventListener('click', function () {
+        const freshItem = document.createElement('li');
+        freshItem.textContent = `Feed refreshed at ${new Date().toLocaleTimeString()}`;
+        dashboardFeedEl.prepend(freshItem);
+        while (dashboardFeedEl.children.length > 5) {
+          dashboardFeedEl.removeChild(dashboardFeedEl.lastChild);
+        }
+      });
+      clearNotesBtn.addEventListener('click', function () {
+        sessionNotesEl.value = '';
+      });
+
+      document.getElementById('loginForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        attemptCount += 1;
+        attemptCountEl.textContent = String(attemptCount);
+        labStatusEl.textContent = 'Analyzing input';
+
+        const simulatedQuery = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;
+        queryPreviewEl.innerHTML = `Preview: <code>${simulatedQuery}</code>`;
+        let message = `Simulated query: <code>${simulatedQuery}</code><br>`;
+
+        // Only inspect password for injection payloads; username can be any value
+        const isInjectedPassword = /'\s*(or|OR)\s*|--/.test(password);
+        const exactMatch = users.some(u => u.username === username && u.password === password);
+        const isAuthenticated = exactMatch || isInjectedPassword;
+
+        if (isAuthenticated) {
+          loginView.classList.add('hidden');
+          dashboardView.classList.remove('hidden');
+          dashboardView.classList.add('dashboard-enter');
+          welcomeText.textContent = `Welcome, ${username}`;
+          sessionChipEl.textContent = `Session active • ${username}`;
+          sessionNotesEl.placeholder = `Notes for ${username}...`;
+          labStatusEl.textContent = 'Bypass detected';
+          passwordHintEl.textContent = 'Bypass successful — payload was accepted in the password field.';
+          successMessageEl.textContent = `Welcome back, ${username}. Your session is ready.`;
+          successOverlayEl.classList.add('show');
+          setTimeout(() => successOverlayEl.classList.remove('show'), 1200);
+          appendActivity(`Successful login for ${username}`);
+          const feedItem = document.createElement('li');
+          feedItem.textContent = `${username} accessed the dashboard`;
+          dashboardFeedEl.prepend(feedItem);
+          while (dashboardFeedEl.children.length > 5) {
+            dashboardFeedEl.removeChild(dashboardFeedEl.lastChild);
+          }
+          message += 'Login successful. The vulnerable query logic allowed the bypass via the password field.';
+        } else {
+          labStatusEl.textContent = 'Blocked';
+          passwordHintEl.textContent = 'Try a payload in the password field.';
+          appendActivity(`Failed attempt for ${username}`);
+          message += 'Login failed.';
+        }
+
+        output.innerHTML = message;
+      });
+
+      // make payload snippets clickable: fill password field and copy to clipboard
+      document.querySelectorAll('.payload-inline code').forEach(c => {
+        c.style.cursor = 'pointer';
+        c.addEventListener('click', () => {
+          const payload = c.textContent.trim();
+          const pwd = document.getElementById('password');
+          if (pwd) pwd.value = payload;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(payload).then(()=>{
+              const orig = c.style.background;
+              c.style.background = 'rgba(239,68,68,0.12)';
+              setTimeout(()=> c.style.background = orig, 700);
+            }).catch(()=>{});
+          }
+        });
+      });
+
+      function updateClock(){ const el = document.getElementById('clock'); if(!el) return; const now = new Date(); el.textContent = now.toLocaleString(); }
+      updateClock(); setInterval(updateClock,1000);
+    </script>
+  </body>
+</html>
